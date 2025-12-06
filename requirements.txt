@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+google-cloud-bigquery
+redis
+pydantic
+fastapi-limiter
+pytest
+httpx
+pytest-asyncio
