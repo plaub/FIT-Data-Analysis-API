@@ -5,7 +5,7 @@ A high-performance FastAPI backend designed to serve fitness data from **Google 
 ## 🚀 Features
 
 - **BigQuery Integration**: Directly queries analytical data from Google BigQuery.
-- **Smart Caching**: Uses **Redis** to cache expensive queries (`/api/summary` cached for 1h, `/api/sessions` for 5m).
+- **Smart Caching**: Uses **Redis** to cache expensive queries (e.g., Session Details cached for 1 week).
 - **Rate Limiting**: Built-in protection against abuse (configurable per minute).
 - **Dockerized**: specific `Dockerfile` and `docker-compose` setup for easy deployment.
 - **RESTful API**: Auto-generated Swagger/OpenAPI documentation.
@@ -49,6 +49,7 @@ Once running, access the interactive API docs:
 ### Key Endpoints
 - `GET /health`: Health check (no cache, no limit).
 - `GET /api/sessions`: List of recent sessions (Cached: 5m).
+- `GET /api/sessions/{session_id}/details`: Detailed records for a session (Cached: 1 week).
 - `GET /api/summary`: Global statistics (Cached: 1h).
 
 ## 🧪 Development & Testing

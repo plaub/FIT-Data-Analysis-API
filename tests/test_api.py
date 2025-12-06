@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from src.models import SessionSummary, GlobalSummary
+from src.models import SessionSummary, GlobalSummary, SessionDetail
 from datetime import datetime
 import json
 
@@ -89,3 +89,38 @@ async def test_get_summary(client, mock_bq_client, mock_redis):
     assert response.status_code == 200
     assert response.json()["total_sessions"] == 100
     mock_bq_client.get_global_summary.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_get_session_details(client, mock_bq_client, mock_redis):
+    session_id = "test_session_1"
+    mock_details = [
+        SessionDetail(
+            session_id=session_id,
+            file_hash="hash123",
+            record_id="rec1",
+            timestamp=datetime(2023, 1, 1, 10, 0, 0),
+            heart_rate=140,
+            power=200
+        ),
+        SessionDetail(
+            session_id=session_id,
+            file_hash="hash123",
+            record_id="rec2",
+            timestamp=datetime(2023, 1, 1, 10, 0, 5),
+            heart_rate=145,
+            power=210
+        )
+    ]
+    mock_bq_client.get_session_details.return_value = mock_details
+    
+    response = await client.get(f"/api/sessions/{session_id}/details")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    assert data[0]["record_id"] == "rec1"
+    assert data[1]["record_id"] == "rec2"
+    
+    mock_bq_client.get_session_details.assert_called_with(session_id)
+    mock_redis.get.assert_called_with(f"session_details:{session_id}")
+

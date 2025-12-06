@@ -47,6 +47,7 @@ def setup_environment():
     
     ttl_sessions = input("Cache TTL for Sessions (seconds, default: 300): ").strip() or "300"
     ttl_summary = input("Cache TTL for Summary (seconds, default: 3600): ").strip() or "3600"
+    ttl_details = input("Cache TTL for Details (seconds, default: 604800): ").strip() or "604800"
     rate_limit = input("Rate Limit per Minute (default: 30): ").strip() or "30"
 
     # Create .env file
@@ -63,6 +64,7 @@ REDIS_PORT={redis_port}
 # CACHE TIME-TO-LIVE (in Sekunden)
 CACHE_TTL_SUMMARY={ttl_summary}  # 1 Stunde fuer aggregierte Daten
 CACHE_TTL_SESSIONS={ttl_sessions}  # 5 Minuten fuer die Liste der letzten Sessions
+CACHE_TTL_DETAILS={ttl_details}  # 1 Woche fuer Session Details
 
 # RATE LIMITING
 RATE_LIMIT_PER_MINUTE="{rate_limit}"  # Max. 30 Anfragen pro Minute pro IP

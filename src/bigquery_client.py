@@ -1,7 +1,7 @@
 from google.cloud import bigquery
 from typing import List
 import os
-from .models import SessionSummary, GlobalSummary
+from .models import SessionSummary, GlobalSummary, SessionDetail
 from datetime import datetime
 
 class BigQueryClient:
@@ -89,3 +89,43 @@ class BigQueryClient:
             total_duration_hours=result.total_duration_hours if result.total_duration_hours else 0.0,
             last_updated=datetime.now()
         )
+
+    def get_session_details(self, session_id: str) -> List[SessionDetail]:
+        query = f"""
+            SELECT *
+            FROM `{self.project_id}.{self.dataset_id}.details`
+            WHERE session_id = @session_id
+            ORDER BY timestamp ASC
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("session_id", "STRING", session_id)
+            ]
+        )
+        query_job = self.client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        details = []
+        for row in results:
+            details.append(SessionDetail(
+                session_id=row.session_id,
+                file_hash=row.file_hash,
+                record_id=row.record_id,
+                timestamp=row.timestamp,
+                position_lat=row.position_lat,
+                position_long=row.position_long,
+                gps_accuracy=row.gps_accuracy,
+                altitude=row.altitude,
+                enhanced_altitude=row.enhanced_altitude,
+                grade=row.grade,
+                distance=row.distance,
+                heart_rate=row.heart_rate,
+                cadence=row.cadence,
+                power=row.power,
+                speed=row.speed,
+                enhanced_speed=row.enhanced_speed,
+                temperature=row.temperature,
+                calories=row.calories,
+                battery_soc=row.battery_soc
+            ))
+        return details

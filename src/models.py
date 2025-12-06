@@ -44,6 +44,27 @@ class SessionSummary(BaseModel):
     num_laps: Optional[int] = None
     created_at: datetime
 
+class SessionDetail(BaseModel):
+    session_id: str
+    file_hash: str
+    record_id: str
+    timestamp: datetime
+    position_lat: Optional[float] = None
+    position_long: Optional[float] = None
+    gps_accuracy: Optional[int] = None
+    altitude: Optional[float] = None
+    enhanced_altitude: Optional[float] = None
+    grade: Optional[float] = None
+    distance: Optional[float] = None
+    heart_rate: Optional[int] = None
+    cadence: Optional[int] = None
+    power: Optional[int] = None
+    speed: Optional[float] = None
+    enhanced_speed: Optional[float] = None
+    temperature: Optional[int] = None
+    calories: Optional[int] = None
+    battery_soc: Optional[float] = None
+
 class GlobalSummary(BaseModel):
     total_sessions: int
     total_distance_km: float
