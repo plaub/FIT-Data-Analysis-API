@@ -12,14 +12,19 @@ async def test_health(client):
 
 @pytest.mark.asyncio
 async def test_get_sessions_no_cache(client, mock_bq_client, mock_redis):
-    # Setup BigQuery Mock return
+    # Setup BigQuery Mock return - using required fields from new model
     mock_sessions = [
         SessionSummary(
-            session_id="1", 
-            start_time=datetime(2023, 1, 1, 10, 0, 0), 
-            sport="Running", 
-            duration_minutes=30.0, 
-            total_distance_km=5.0
+            file_hash="hash123",
+            filename="run.fit",
+            session_id="1",
+            created_at=datetime(2023, 1, 1, 10, 0, 0),
+            
+            # Optional fields
+            start_time=datetime(2023, 1, 1, 10, 0, 0),
+            sport="Running",
+            total_timer_time=1800.0, # 30 mins * 60
+            total_distance=5000.0   # 5 km * 1000
         )
     ]
     mock_bq_client.get_recent_sessions.return_value = mock_sessions
@@ -32,6 +37,7 @@ async def test_get_sessions_no_cache(client, mock_bq_client, mock_redis):
     data = response.json()
     assert len(data) == 1
     assert data[0]["session_id"] == "1"
+    assert data[0]["file_hash"] == "hash123"
     
     # Verify Interactions
     mock_bq_client.get_recent_sessions.assert_called_once()  # Should hit DB
@@ -41,13 +47,17 @@ async def test_get_sessions_no_cache(client, mock_bq_client, mock_redis):
 @pytest.mark.asyncio
 async def test_get_sessions_cached(client, mock_bq_client, mock_redis):
     # Setup Redis Mock to return cached data
+    # Must match structure of SessionSummary model dump
     cached_data = [
         {
+            "file_hash": "hash_cached",
+            "filename": "cached.fit",
             "session_id": "cached_1", 
+            "created_at": "2023-01-01T10:00:00",
             "start_time": "2023-01-01T10:00:00", 
             "sport": "Cycling", 
-            "duration_minutes": 60.0, 
-            "total_distance_km": 20.0
+            "total_timer_time": 3600.0, 
+            "total_distance": 20000.0
         }
     ]
     mock_redis.get.return_value = json.dumps(cached_data)
