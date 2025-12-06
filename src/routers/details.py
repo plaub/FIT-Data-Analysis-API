@@ -17,27 +17,52 @@ router = APIRouter(
             dependencies=[Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
 async def get_session_details(
     session_id: str,
+    fields: str = None, # Comma separated list of fields
     redis = Depends(get_redis),
     bq_client = Depends(get_bq_client)
 ):
+    # Parse fields if provided
+    field_list = [f.strip() for f in fields.split(",")] if fields else None
+    
+    # Cache Key is ALWAYS by session_id (we cache the full response)
     cache_key = f"session_details:{session_id}"
     
+    # Helper to filter fields
+    def filter_fields(details: List[SessionDetail], selected: List[str]) -> List[SessionDetail]:
+        if not selected:
+            return details
+        
+        # Ensure ID fields are always present
+        required = {"session_id", "timestamp", "record_id", "file_hash"}
+        keep = required.union(set(selected))
+        
+        filtered = []
+        for d in details:
+            # Create a copy with only selected fields, others None
+            
+            d_dict = d.model_dump()
+            filtered_dict = {k: v for k, v in d_dict.items() if k in keep}
+            filtered.append(SessionDetail(**filtered_dict))
+            
+        return filtered
+
     # Try Cache
     cached_data = await redis.get(cache_key)
     if cached_data:
         data_list = json.loads(cached_data)
-        return [SessionDetail(**item) for item in data_list]
+        full_details = [SessionDetail(**item) for item in data_list]
+        return filter_fields(full_details, field_list)
     
-    # Cache Miss
-    details = bq_client.get_session_details(session_id)
+    # Cache Miss - Get ALL details from BQ
+    full_details = bq_client.get_session_details(session_id)
     
-    # Serialize and Cache
-    if details:
-        details_json = [d.model_dump() for d in details]
+    # Serialize and Cache FULL details
+    if full_details:
+        details_json = [d.model_dump() for d in full_details]
         await redis.set(
             cache_key, 
             json.dumps(details_json, default=str), 
             ex=settings.CACHE_TTL_DETAILS
         )
     
-    return details
+    return filter_fields(full_details, field_list)

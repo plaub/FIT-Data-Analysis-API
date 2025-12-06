@@ -124,3 +124,39 @@ async def test_get_session_details(client, mock_bq_client, mock_redis):
     mock_bq_client.get_session_details.assert_called_with(session_id)
     mock_redis.get.assert_called_with(f"session_details:{session_id}")
 
+@pytest.mark.asyncio
+async def test_get_session_details_with_fields(client, mock_bq_client, mock_redis):
+    session_id = "test_session_1"
+    # The mock returns full objects, API filters them
+    mock_details = [
+        SessionDetail(
+            session_id=session_id,
+            file_hash="hash123",
+            record_id="rec1",
+            timestamp=datetime(2023, 1, 1, 10, 0, 0),
+            heart_rate=140,
+            power=200 # This should be filtered out
+        )
+    ]
+    mock_bq_client.get_session_details.return_value = mock_details
+    
+    fields_param = "heart_rate"
+    response = await client.get(f"/api/sessions/{session_id}/details?fields={fields_param}")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["heart_rate"] == 140
+    # Power should not be in the response (or None if default, but we filtered)
+    # The filter logic in router reconstructs the model, so unset fields are null/excluded depending on model dump config.
+    # Our filter uses "keep" set.
+    # We constructed the dict with valid keys. Power was not in keep.
+    # So power should be None in the response object (since it's Optional in model).
+    assert data[0]["power"] is None
+    
+    # Check that client was called without specific fields (always full fetch)
+    mock_bq_client.get_session_details.assert_called_with(session_id)
+    
+    # Check cache key is the FULL one
+    mock_redis.get.assert_called_with(f"session_details:{session_id}")
+
