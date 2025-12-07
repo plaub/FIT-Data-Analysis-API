@@ -21,4 +21,7 @@ class Settings:
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", 30))
 
+    # CORS
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:4321,http://localhost:3000").split(",")
+
 settings = Settings()

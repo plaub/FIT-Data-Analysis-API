@@ -50,6 +50,11 @@ def setup_environment():
     ttl_details = input("Cache TTL for Details (seconds, default: 604800): ").strip() or "604800"
     rate_limit = input("Rate Limit per Minute (default: 30): ").strip() or "30"
 
+    print()
+    print("🌐 CORS Configuration")
+    print("-" * 40)
+    cors_origins = input("CORS Origins (comma-separated, default: http://localhost:4321,http://localhost:3000): ").strip() or "http://localhost:4321,http://localhost:3000"
+
     # Create .env file
     env_content = f"""# BIGQUERY CONFIG
 BIGQUERY_PROJECT_ID="{project_id}"
@@ -67,7 +72,11 @@ CACHE_TTL_SESSIONS={ttl_sessions}  # 5 Minuten fuer die Liste der letzten Sessio
 CACHE_TTL_DETAILS={ttl_details}  # 1 Woche fuer Session Details
 
 # RATE LIMITING
+# RATE LIMITING
 RATE_LIMIT_PER_MINUTE="{rate_limit}"  # Max. 30 Anfragen pro Minute pro IP
+
+# CORS
+CORS_ORIGINS="{cors_origins}"
 """
     
     with open(".env", "w") as f:

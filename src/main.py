@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi_limiter import FastAPILimiter
 import redis.asyncio as redis
 from contextlib import asynccontextmanager
@@ -21,6 +23,17 @@ app = FastAPI(
     description="Backend API for serving fitness data from BigQuery with Redis caching.",
     version="1.0.0",
     lifespan=lifespan
+)
+
+# CORS Configuration
+origins = settings.CORS_ORIGINS
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include Routers
