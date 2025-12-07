@@ -10,7 +10,7 @@ class BigQueryClient:
         self.dataset_id = os.getenv("BIGQUERY_DATASET")
         self.client = bigquery.Client(project=self.project_id)
 
-    def get_recent_sessions(self, limit: int = 10) -> List[SessionSummary]:
+    def get_recent_sessions(self, limit: int = 10, offset: int = 0) -> List[SessionSummary]:
         # Select all columns defined in the SessionSummary model
         # Using * for simplicity, but explicit selection matches the model definition better
         # For this specific case, we'll explicitly map the query to the model fields
@@ -18,7 +18,7 @@ class BigQueryClient:
             SELECT *
             FROM `{self.project_id}.{self.dataset_id}.sessions`
             ORDER BY start_time DESC
-            LIMIT {limit}
+            LIMIT {limit} OFFSET {offset}
         """
         query_job = self.client.query(query)
         results = query_job.result()

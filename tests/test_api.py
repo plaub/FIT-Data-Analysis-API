@@ -41,7 +41,7 @@ async def test_get_sessions_no_cache(client, mock_bq_client, mock_redis):
     
     # Verify Interactions
     mock_bq_client.get_recent_sessions.assert_called_once()  # Should hit DB
-    mock_redis.get.assert_called_with("sessions_list")     # Should check cache
+    mock_redis.get.assert_called_with("sessions_list_page_1")     # Should check cache
     mock_redis.set.assert_called_once()                    # Should set cache
 
 @pytest.mark.asyncio
@@ -72,7 +72,39 @@ async def test_get_sessions_cached(client, mock_bq_client, mock_redis):
     
     # Verify Interactions
     mock_bq_client.get_recent_sessions.assert_not_called() # Should NOT hit DB
-    mock_redis.get.assert_called()
+    mock_redis.get.assert_called_with("sessions_list_page_1")
+
+@pytest.mark.asyncio
+async def test_get_sessions_pagination(client, mock_bq_client, mock_redis):
+    # Setup BigQuery Mock return
+    mock_sessions = [
+        SessionSummary(
+            file_hash="hash_p2",
+            filename="run_p2.fit",
+            session_id="p2",
+            created_at=datetime(2023, 1, 1, 10, 0, 0),
+            start_time=datetime(2023, 1, 1, 10, 0, 0),
+            sport="Running",
+            total_timer_time=1800.0,
+            total_distance=5000.0
+        )
+    ]
+    mock_bq_client.get_recent_sessions.return_value = mock_sessions
+    
+    # Run Request for Page 2
+    response = await client.get("/api/sessions?page=2")
+    
+    # Verify basics
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["session_id"] == "p2"
+    
+    # Verify Interactions
+    # Offset should be (2-1)*10 = 10
+    mock_bq_client.get_recent_sessions.assert_called_with(limit=10, offset=10)
+    mock_redis.get.assert_called_with("sessions_list_page_2")
+
 
 @pytest.mark.asyncio
 async def test_get_summary(client, mock_bq_client, mock_redis):
