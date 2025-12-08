@@ -113,6 +113,8 @@ jobs:
               -v $CREDENTIALS_FILE:$CONTAINER_CREDS_PATH:ro \
               -e REDIS_URL=redis://$REDIS_CONTAINER_NAME:6379 \
               -e GOOGLE_APPLICATION_CREDENTIALS=$CONTAINER_CREDS_PATH \
+              -e BIGQUERY_PROJECT_ID=${{ secrets.BIGQUERY_PROJECT_ID }} \
+              -e BIGQUERY_DATASET=${{ secrets.BIGQUERY_DATASET }} \
               --restart on-failure \
               $IMAGE_TAG
 
@@ -171,6 +173,8 @@ jobs:
               -v $CREDENTIALS_FILE:$CONTAINER_CREDS_PATH:ro \
               -e REDIS_URL=redis://$REDIS_CONTAINER_NAME:6379 \
               -e GOOGLE_APPLICATION_CREDENTIALS=$CONTAINER_CREDS_PATH \
+              -e BIGQUERY_PROJECT_ID=${{ secrets.BIGQUERY_PROJECT_ID }} \
+              -e BIGQUERY_DATASET=${{ secrets.BIGQUERY_DATASET }} \
               --restart always \
               $IMAGE_TAG
 
