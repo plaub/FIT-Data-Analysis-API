@@ -115,6 +115,7 @@ jobs:
               -e GOOGLE_APPLICATION_CREDENTIALS=$CONTAINER_CREDS_PATH \
               -e BIGQUERY_PROJECT_ID=${{ secrets.BIGQUERY_PROJECT_ID }} \
               -e BIGQUERY_DATASET=${{ secrets.BIGQUERY_DATASET }} \
+              -e CORS_ORIGINS=${{ secrets.CORS_ORIGINS }} \
               --restart on-failure \
               $IMAGE_TAG
 
@@ -175,6 +176,7 @@ jobs:
               -e GOOGLE_APPLICATION_CREDENTIALS=$CONTAINER_CREDS_PATH \
               -e BIGQUERY_PROJECT_ID=${{ secrets.BIGQUERY_PROJECT_ID }} \
               -e BIGQUERY_DATASET=${{ secrets.BIGQUERY_DATASET }} \
+              -e CORS_ORIGINS=${{ secrets.CORS_ORIGINS }} \
               --restart always \
               $IMAGE_TAG
 
