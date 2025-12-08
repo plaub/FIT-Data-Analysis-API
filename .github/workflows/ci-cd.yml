@@ -33,8 +33,8 @@ jobs:
           push: true
           # The image tag for the final container
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/python-fit-api:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/python-fit-api:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/astro-app:fit-api-latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/astro-app:fit-api-${{ github.sha }}
 
   # ------------------------------------------------
   # JOB 2: Continuous Deployment (CD)
@@ -54,8 +54,8 @@ jobs:
 
           # Commands to execute on your Linux server:
           script: |
-            IMAGE_TAG=${{ secrets.DOCKERHUB_USERNAME }}/python-fit-api:${{ github.sha }}
-            IMAGE_TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/python-fit-api:latest
+            IMAGE_TAG=${{ secrets.DOCKERHUB_USERNAME }}/astro-app:fit-api-${{ github.sha }}
+            IMAGE_TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/astro-app:fit-api-latest
             LIVE_CONTAINER_NAME=fit_api_live
             NEW_CONTAINER_NAME=fit_api_staging
             REDIS_CONTAINER_NAME=fit_api_redis
