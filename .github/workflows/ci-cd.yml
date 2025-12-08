@@ -108,10 +108,34 @@ jobs:
               $IMAGE_TAG
 
             echo "4. Health check - waiting for new container to be ready..."
-            # Wait for container to be healthy (pinging the container via the staging port on the host)
-            sleep 10
-            if ! wget --spider -q http://localhost:$STAGING_PORT/docs; then
-              echo "❌ Health check failed on port $STAGING_PORT! Rolling back..."
+            # Check container status
+            echo "   Container status:"
+            docker ps -a | grep $NEW_CONTAINER_NAME || true
+
+            # Show container logs for debugging
+            echo "   Container logs:"
+            docker logs $NEW_CONTAINER_NAME || true
+
+            # Wait longer and retry health check multiple times
+            echo "   Waiting 15 seconds for container startup..."
+            sleep 15
+
+            # Try health check with retries
+            HEALTH_CHECK_PASSED=false
+            for i in {1..5}; do
+              echo "   Health check attempt $i/5..."
+              if wget --spider -q http://localhost:$STAGING_PORT/docs 2>/dev/null; then
+                HEALTH_CHECK_PASSED=true
+                break
+              fi
+              echo "   Attempt $i failed, waiting 5 more seconds..."
+              sleep 5
+            done
+
+            if [ "$HEALTH_CHECK_PASSED" = false ]; then
+              echo "❌ Health check failed on port $STAGING_PORT after 5 attempts! Rolling back..."
+              echo "   Final container logs:"
+              docker logs --tail 50 $NEW_CONTAINER_NAME || true
               docker stop $NEW_CONTAINER_NAME || true
               docker rm $NEW_CONTAINER_NAME || true
               exit 1
