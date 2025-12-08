@@ -1,0 +1,154 @@
+name: FastAPI Docker CI/CD Pipeline
+
+on:
+  # Trigger: Allows manual execution from the GitHub Actions tab
+  workflow_dispatch:
+  # Trigger: Automatic execution on push to main branch
+  push:
+    branches:
+      - main
+
+jobs:
+  # ------------------------------------------------
+  # JOB 1: Continuous Integration (CI)
+  # Builds the Docker image and pushes it to the registry
+  # ------------------------------------------------
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🐳 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          # Use secrets defined in GitHub repository settings
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 🏗️ Build and Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # The image tag for the final container
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/python-fit-api:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/python-fit-api:${{ github.sha }}
+
+  # ------------------------------------------------
+  # JOB 2: Continuous Deployment (CD)
+  # Deploys the new image via SSH on the Linux server
+  # ------------------------------------------------
+  deploy:
+    needs: build-and-push # Ensures this job starts only after a successful build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 💻 Deploy new Docker image via SSH
+        uses: appleboy/ssh-action@v1.0.1
+        with:
+          # SSH connection secrets
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+
+          # Commands to execute on your Linux server:
+          script: |
+            IMAGE_TAG=${{ secrets.DOCKERHUB_USERNAME }}/python-fit-api:${{ github.sha }}
+            IMAGE_TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/python-fit-api:latest
+            LIVE_CONTAINER_NAME=fit_api_live
+            NEW_CONTAINER_NAME=fit_api_staging
+            REDIS_CONTAINER_NAME=fit_api_redis
+            CREDENTIALS_FILE=/tmp/google-credentials.json
+
+            # 💡 FINAL PORT: The application runs here
+            LIVE_PORT=8000
+            # 💡 TEMPORARY PORT: Used for the health check
+            STAGING_PORT=8001
+            # 💡 REDIS PORT
+            REDIS_PORT=6379
+
+            echo "0. Logging into Docker Hub..."
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+            echo "1. Writing Google Cloud credentials to file..."
+            # Create credentials file from secret
+            echo '${{ secrets.GOOGLE_CREDENTIALS }}' > $CREDENTIALS_FILE
+            chmod 600 $CREDENTIALS_FILE
+
+            echo "2. Ensuring Redis is running..."
+            # Check if Redis container exists and is running, if not start it
+            if [ ! "$(docker ps -q -f name=$REDIS_CONTAINER_NAME)" ]; then
+              echo "   Starting Redis container..."
+              docker run -d \
+                --name $REDIS_CONTAINER_NAME \
+                -p $REDIS_PORT:6379 \
+                --restart always \
+                redis:alpine
+            else
+              echo "   Redis container already running."
+            fi
+
+            echo "2. Pulling new image from Docker Hub..."
+            # Use SHA-specific tag to ensure we get the exact new build
+            docker pull $IMAGE_TAG
+            # Also pull latest for reference
+            docker pull $IMAGE_TAG_LATEST
+
+            echo "3. Starting new container alongside the old one on port $STAGING_PORT..."
+            # Start the new container on the staging port using SHA-specific tag
+            docker run -d \
+              --name $NEW_CONTAINER_NAME \
+              -p $STAGING_PORT:8000 \
+              --link $REDIS_CONTAINER_NAME:redis \
+              -v $CREDENTIALS_FILE:/app/credentials.json:ro \
+              -e REDIS_URL=redis://redis:6379 \
+              -e GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json \
+              --restart on-failure \
+              $IMAGE_TAG
+
+            echo "4. Health check - waiting for new container to be ready..."
+            # Wait for container to be healthy (pinging the container via the staging port on the host)
+            sleep 10
+            if ! wget --spider -q http://localhost:$STAGING_PORT/docs; then
+              echo "❌ Health check failed on port $STAGING_PORT! Rolling back..."
+              docker stop $NEW_CONTAINER_NAME || true
+              docker rm $NEW_CONTAINER_NAME || true
+              exit 1
+            fi
+            echo "✅ Health check passed!"
+
+            echo "5. Switching to new container (zero-downtime attempt)..."
+
+            # --- Stop/Remove Old Container (Frees up port 8000) ---
+            echo "   Stopping and removing old container ($LIVE_CONTAINER_NAME)..."
+            docker stop $LIVE_CONTAINER_NAME || true
+            docker rm $LIVE_CONTAINER_NAME || true
+
+            # --- Rerun Staging Container on Live Port (8000) and Rename ---
+            # Stop the temporary container (to free up $STAGING_PORT)
+            docker stop $NEW_CONTAINER_NAME
+            docker rm $NEW_CONTAINER_NAME
+
+            # Start the container again, now using the final LIVE_PORT (8000:8000) with SHA-specific tag
+            docker run -d \
+              --name $LIVE_CONTAINER_NAME \
+              -p $LIVE_PORT:8000 \
+              --link $REDIS_CONTAINER_NAME:redis \
+              -v $CREDENTIALS_FILE:/app/credentials.json:ro \
+              -e REDIS_URL=redis://redis:6379 \
+              -e GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json \
+              --restart always \
+              $IMAGE_TAG
+
+            echo "6. Cleaning up credentials file..."
+            # Note: Keep credentials file for running container, it will be overwritten on next deployment
+
+            echo "7. Cleaning up old Docker images..."
+            docker image prune -af --filter "until=24h"
+
+            echo "8. Logging out from Docker Hub..."
+            docker logout
+
+            echo "✅ Deployment finished successfully!"
+            echo "📦 Deployed image: $IMAGE_TAG"
