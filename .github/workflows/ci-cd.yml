@@ -60,6 +60,7 @@ jobs:
             NEW_CONTAINER_NAME=fit_api_staging
             REDIS_CONTAINER_NAME=fit_api_redis
             CREDENTIALS_FILE=/tmp/google-credentials.json
+            NETWORK_NAME=fit_api_network
 
             # 💡 FINAL PORT: The application runs here
             LIVE_PORT=8000
@@ -76,38 +77,45 @@ jobs:
             echo '${{ secrets.GOOGLE_CREDENTIALS }}' > $CREDENTIALS_FILE
             chmod 600 $CREDENTIALS_FILE
 
-            echo "2. Ensuring Redis is running..."
+            echo "2. Ensuring Docker network exists..."
+            # Create Docker network if it doesn't exist
+            docker network inspect $NETWORK_NAME >/dev/null 2>&1 || docker network create $NETWORK_NAME
+
+            echo "3. Ensuring Redis is running..."
             # Check if Redis container exists and is running, if not start it
             if [ ! "$(docker ps -q -f name=$REDIS_CONTAINER_NAME)" ]; then
               echo "   Starting Redis container..."
               docker run -d \
                 --name $REDIS_CONTAINER_NAME \
+                --network $NETWORK_NAME \
                 -p $REDIS_PORT:6379 \
                 --restart always \
                 redis:alpine
             else
               echo "   Redis container already running."
+              # Ensure it's connected to the network
+              docker network connect $NETWORK_NAME $REDIS_CONTAINER_NAME 2>/dev/null || true
             fi
 
-            echo "2. Pulling new image from Docker Hub..."
+            echo "4. Pulling new image from Docker Hub..."
             # Use SHA-specific tag to ensure we get the exact new build
             docker pull $IMAGE_TAG
             # Also pull latest for reference
             docker pull $IMAGE_TAG_LATEST
 
-            echo "3. Starting new container alongside the old one on port $STAGING_PORT..."
+            echo "5. Starting new container alongside the old one on port $STAGING_PORT..."
             # Start the new container on the staging port using SHA-specific tag
             docker run -d \
               --name $NEW_CONTAINER_NAME \
+              --network $NETWORK_NAME \
               -p $STAGING_PORT:8000 \
-              --link $REDIS_CONTAINER_NAME:redis \
               -v $CREDENTIALS_FILE:/app/credentials.json:ro \
-              -e REDIS_URL=redis://redis:6379 \
+              -e REDIS_URL=redis://$REDIS_CONTAINER_NAME:6379 \
               -e GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json \
               --restart on-failure \
               $IMAGE_TAG
 
-            echo "4. Health check - waiting for new container to be ready..."
+            echo "6. Health check - waiting for new container to be ready..."
             # Check container status
             echo "   Container status:"
             docker ps -a | grep $NEW_CONTAINER_NAME || true
@@ -142,7 +150,7 @@ jobs:
             fi
             echo "✅ Health check passed!"
 
-            echo "5. Switching to new container (zero-downtime attempt)..."
+            echo "7. Switching to new container (zero-downtime attempt)..."
 
             # --- Stop/Remove Old Container (Frees up port 8000) ---
             echo "   Stopping and removing old container ($LIVE_CONTAINER_NAME)..."
@@ -157,21 +165,21 @@ jobs:
             # Start the container again, now using the final LIVE_PORT (8000:8000) with SHA-specific tag
             docker run -d \
               --name $LIVE_CONTAINER_NAME \
+              --network $NETWORK_NAME \
               -p $LIVE_PORT:8000 \
-              --link $REDIS_CONTAINER_NAME:redis \
               -v $CREDENTIALS_FILE:/app/credentials.json:ro \
-              -e REDIS_URL=redis://redis:6379 \
+              -e REDIS_URL=redis://$REDIS_CONTAINER_NAME:6379 \
               -e GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json \
               --restart always \
               $IMAGE_TAG
 
-            echo "6. Cleaning up credentials file..."
+            echo "8. Cleaning up credentials file..."
             # Note: Keep credentials file for running container, it will be overwritten on next deployment
 
-            echo "7. Cleaning up old Docker images..."
+            echo "9. Cleaning up old Docker images..."
             docker image prune -af --filter "until=24h"
 
-            echo "8. Logging out from Docker Hub..."
+            echo "10. Logging out from Docker Hub..."
             docker logout
 
             echo "✅ Deployment finished successfully!"
