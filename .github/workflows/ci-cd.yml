@@ -61,6 +61,7 @@ jobs:
             REDIS_CONTAINER_NAME=fit_api_redis
             CREDENTIALS_FILE=/tmp/google-credentials.json
             NETWORK_NAME=fit_api_network
+            CONTAINER_CREDS_PATH=/app/keys/fit-analyze-480219-1f7156c9487e.json
 
             # 💡 FINAL PORT: The application runs here
             LIVE_PORT=8000
@@ -109,9 +110,9 @@ jobs:
               --name $NEW_CONTAINER_NAME \
               --network $NETWORK_NAME \
               -p $STAGING_PORT:8000 \
-              -v $CREDENTIALS_FILE:/app/credentials.json:ro \
+              -v $CREDENTIALS_FILE:$CONTAINER_CREDS_PATH:ro \
               -e REDIS_URL=redis://$REDIS_CONTAINER_NAME:6379 \
-              -e GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json \
+              -e GOOGLE_APPLICATION_CREDENTIALS=$CONTAINER_CREDS_PATH \
               --restart on-failure \
               $IMAGE_TAG
 
@@ -167,9 +168,9 @@ jobs:
               --name $LIVE_CONTAINER_NAME \
               --network $NETWORK_NAME \
               -p $LIVE_PORT:8000 \
-              -v $CREDENTIALS_FILE:/app/credentials.json:ro \
+              -v $CREDENTIALS_FILE:$CONTAINER_CREDS_PATH:ro \
               -e REDIS_URL=redis://$REDIS_CONTAINER_NAME:6379 \
-              -e GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json \
+              -e GOOGLE_APPLICATION_CREDENTIALS=$CONTAINER_CREDS_PATH \
               --restart always \
               $IMAGE_TAG
 
