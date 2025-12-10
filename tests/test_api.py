@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from src.models import SessionSummary, GlobalSummary, SessionDetail
+from src.models import SessionSummary, GlobalSummary, SessionDetail, DailyActivitySummary
 from datetime import datetime
 import json
 
@@ -191,4 +191,60 @@ async def test_get_session_details_with_fields(client, mock_bq_client, mock_redi
     
     # Check cache key is the FULL one
     mock_redis.get.assert_called_with(f"session_details:{session_id}")
+
+
+@pytest.mark.asyncio
+async def test_get_daily_summary_no_cache(client, mock_bq_client, mock_redis):
+    # Setup BigQuery Mock return
+    mock_summaries = [
+        DailyActivitySummary(
+            activity_date=datetime(2023, 1, 1).date(),
+            sport="Running",
+            session_count=3,
+            total_distance_m=15000.0,
+            total_elapsed_time=5400.0,
+        )
+    ]
+
+    mock_bq_client.get_daily_activity_summary.return_value = mock_summaries
+
+    response = await client.get("/api/daily-summary?start_date=2023-01-01&end_date=2023-01-31&sport=Running")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["sport"] == "Running"
+    assert data[0]["session_count"] == 3
+
+    mock_bq_client.get_daily_activity_summary.assert_called_once()
+    # Cache miss path should check the composed key
+    mock_redis.get.assert_called_with("daily_activity:2023-01-01:2023-01-31:Running")
+    mock_redis.set.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_daily_summary_cached(client, mock_bq_client, mock_redis):
+    cached_data = [
+        {
+            "activity_date": "2023-01-02",
+            "sport": "Cycling",
+            "session_count": 2,
+            "total_distance_m": 20000.0,
+            "total_elapsed_time": 3600.0,
+        }
+    ]
+
+    mock_redis.get.return_value = json.dumps(cached_data)
+
+    response = await client.get("/api/daily-summary?start_date=2023-01-01&end_date=2023-01-31&sport=Cycling")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["sport"] == "Cycling"
+    assert data[0]["session_count"] == 2
+
+    # Should not hit BigQuery when cached
+    mock_bq_client.get_daily_activity_summary.assert_not_called()
+    mock_redis.get.assert_called_with("daily_activity:2023-01-01:2023-01-31:Cycling")
 

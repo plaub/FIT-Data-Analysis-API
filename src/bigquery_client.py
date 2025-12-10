@@ -1,8 +1,8 @@
 from google.cloud import bigquery
-from typing import List
+from typing import List, Optional
 import os
-from .models import SessionSummary, GlobalSummary, SessionDetail
-from datetime import datetime
+from .models import SessionSummary, GlobalSummary, SessionDetail, DailyActivitySummary
+from datetime import datetime, date
 
 class BigQueryClient:
     def __init__(self):
@@ -18,9 +18,15 @@ class BigQueryClient:
             SELECT *
             FROM `{self.project_id}.{self.dataset_id}.sessions`
             ORDER BY start_time DESC
-            LIMIT {limit} OFFSET {offset}
+            LIMIT @limit OFFSET @offset
         """
-        query_job = self.client.query(query)
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("limit", "INT64", limit),
+                bigquery.ScalarQueryParameter("offset", "INT64", offset)
+            ]
+        )
+        query_job = self.client.query(query, job_config=job_config)
         results = query_job.result()
         
         sessions = []
@@ -129,3 +135,67 @@ class BigQueryClient:
                 battery_soc=row.battery_soc
             ))
         return details
+
+    def get_daily_activity_summary(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        sport: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> List[DailyActivitySummary]:
+        base_query = f"""
+            SELECT
+                activity_date,
+                sport,
+                session_count,
+                total_distance_m,
+                total_elapsed_time
+            FROM `{self.project_id}.{self.dataset_id}.daily_activity_summary_mv`
+            WHERE 1=1
+        """
+
+        query_parameters = []
+
+        if start_date is not None:
+            base_query += " AND activity_date >= @start_date"
+            query_parameters.append(
+                bigquery.ScalarQueryParameter("start_date", "DATE", start_date)
+            )
+
+        if end_date is not None:
+            base_query += " AND activity_date <= @end_date"
+            query_parameters.append(
+                bigquery.ScalarQueryParameter("end_date", "DATE", end_date)
+            )
+
+        if sport is not None:
+            base_query += " AND sport = @sport"
+            query_parameters.append(
+                bigquery.ScalarQueryParameter("sport", "STRING", sport)
+            )
+
+        base_query += "\n ORDER BY activity_date DESC, sport ASC"
+
+        if limit is not None:
+            base_query += f"\n LIMIT {int(limit)}"
+            if offset is not None and offset != 0:
+                base_query += f" OFFSET {int(offset)}"
+
+        job_config = bigquery.QueryJobConfig(query_parameters=query_parameters)
+        query_job = self.client.query(base_query, job_config=job_config)
+        results = query_job.result()
+
+        summaries: List[DailyActivitySummary] = []
+        for row in results:
+            summaries.append(
+                DailyActivitySummary(
+                    activity_date=row.activity_date,
+                    sport=row.sport,
+                    session_count=row.session_count,
+                    total_distance_m=row.total_distance_m,
+                    total_elapsed_time=row.total_elapsed_time,
+                )
+            )
+
+        return summaries

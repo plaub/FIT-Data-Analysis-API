@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 class SessionSummary(BaseModel):
     file_hash: str
@@ -70,3 +70,11 @@ class GlobalSummary(BaseModel):
     total_distance_km: float
     total_duration_hours: float
     last_updated: datetime
+
+
+class DailyActivitySummary(BaseModel):
+    activity_date: date
+    sport: Optional[str] = None
+    session_count: Optional[int] = None
+    total_distance_m: Optional[float] = None
+    total_elapsed_time: Optional[float] = None
