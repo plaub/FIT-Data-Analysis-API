@@ -3,7 +3,7 @@ from fastapi_limiter.depends import RateLimiter
 import json
 from typing import List
 
-from ..models import SessionDetail
+from ..models import SessionDetail, ResponseWithSource
 from ..config import settings
 from ..dependencies import get_redis, get_bq_client
 
@@ -13,7 +13,7 @@ router = APIRouter(
 )
 
 @router.get("/{session_id}/details", 
-            response_model=List[SessionDetail], 
+            response_model=ResponseWithSource[List[SessionDetail]], 
             dependencies=[Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
 async def get_session_details(
     session_id: str,
@@ -51,7 +51,10 @@ async def get_session_details(
     if cached_data:
         data_list = json.loads(cached_data)
         full_details = [SessionDetail(**item) for item in data_list]
-        return filter_fields(full_details, field_list)
+        return ResponseWithSource(
+            data=filter_fields(full_details, field_list),
+            source="cache"
+        )
     
     # Cache Miss - Get ALL details from BQ
     full_details = bq_client.get_session_details(session_id)
@@ -65,4 +68,7 @@ async def get_session_details(
             ex=settings.CACHE_TTL_DETAILS
         )
     
-    return filter_fields(full_details, field_list)
+    return ResponseWithSource(
+        data=filter_fields(full_details, field_list),
+        source="bigquery"
+    )

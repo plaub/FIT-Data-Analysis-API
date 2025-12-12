@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from fastapi_limiter.depends import RateLimiter
 import json
 
-from ..models import GlobalSummary
+from ..models import GlobalSummary, ResponseWithSource
 from ..config import settings
 from ..dependencies import get_redis, get_bq_client
 
@@ -12,7 +12,7 @@ router = APIRouter(
 )
 
 @router.get("", 
-            response_model=GlobalSummary, 
+            response_model=ResponseWithSource[GlobalSummary], 
             dependencies=[Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))])
 
 async def get_summary(
@@ -24,7 +24,10 @@ async def get_summary(
     # Try Cache
     cached_data = await redis.get(cache_key)
     if cached_data:
-        return GlobalSummary(**json.loads(cached_data))
+        return ResponseWithSource(
+            data=GlobalSummary(**json.loads(cached_data)),
+            source="cache"
+        )
     
     # Cache Miss
     summary = bq_client.get_global_summary()
@@ -36,4 +39,7 @@ async def get_summary(
         ex=settings.CACHE_TTL_SUMMARY
     )
     
-    return summary
+    return ResponseWithSource(
+        data=summary,
+        source="bigquery"
+    )

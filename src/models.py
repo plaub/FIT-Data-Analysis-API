@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Generic, TypeVar, Literal
 from datetime import datetime, date
 
 class SessionSummary(BaseModel):
@@ -78,3 +78,31 @@ class DailyActivitySummary(BaseModel):
     session_count: Optional[int] = None
     total_distance_m: Optional[float] = None
     total_elapsed_time: Optional[float] = None
+
+
+class WeeklyActivitySummary(BaseModel):
+    week_start_date: date
+    iso_year: Optional[int] = None
+    iso_week: Optional[int] = None
+    sport: Optional[str] = None
+    session_count: Optional[int] = None
+    total_distance_m: Optional[float] = None
+    total_elapsed_time: Optional[float] = None
+
+
+class MonthlyActivitySummary(BaseModel):
+    month_start_date: date
+    year: Optional[int] = None
+    month: Optional[int] = None
+    sport: Optional[str] = None
+    session_count: Optional[int] = None
+    total_distance_m: Optional[float] = None
+    total_elapsed_time: Optional[float] = None
+
+
+# Generic response wrapper with data source indicator
+T = TypeVar('T')
+
+class ResponseWithSource(BaseModel, Generic[T]):
+    data: T
+    source: Literal["cache", "bigquery"]
