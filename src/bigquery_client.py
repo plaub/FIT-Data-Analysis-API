@@ -78,6 +78,65 @@ class BigQueryClient:
             ))
         return sessions
 
+    def get_session_by_id(self, session_id: str) -> Optional[SessionSummary]:
+        query = f"""
+            SELECT *
+            FROM `{self.project_id}.{self.dataset_id}.sessions`
+            WHERE session_id = @session_id
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("session_id", "STRING", session_id)
+            ]
+        )
+        query_job = self.client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            return SessionSummary(
+                file_hash=row.file_hash,
+                filename=row.filename,
+                session_id=row.session_id,
+                timestamp=row.timestamp,
+                start_time=row.start_time,
+                manufacturer=row.manufacturer,
+                product=row.product,
+                serial_number=row.serial_number,
+                sport=row.sport,
+                sub_sport=row.sub_sport,
+                total_elapsed_time=row.total_elapsed_time,
+                total_timer_time=row.total_timer_time,
+                total_distance=row.total_distance,
+                avg_speed=row.avg_speed,
+                max_speed=row.max_speed,
+                avg_cadence=row.avg_cadence,
+                max_cadence=row.max_cadence,
+                min_heart_rate=row.min_heart_rate,
+                avg_heart_rate=row.avg_heart_rate,
+                max_heart_rate=row.max_heart_rate,
+                avg_power=row.avg_power,
+                max_power=row.max_power,
+                normalized_power=row.normalized_power,
+                threshold_power=row.threshold_power,
+                total_work=row.total_work,
+                total_calories=row.total_calories,
+                min_altitude=row.min_altitude,
+                avg_altitude=row.avg_altitude,
+                max_altitude=row.max_altitude,
+                total_ascent=row.total_ascent,
+                total_descent=row.total_descent,
+                avg_grade=row.avg_grade,
+                max_pos_grade=row.max_pos_grade,
+                max_neg_grade=row.max_neg_grade,
+                avg_temperature=row.avg_temperature,
+                max_temperature=row.max_temperature,
+                training_stress_score=row.training_stress_score,
+                intensity_factor=row.intensity_factor,
+                num_laps=row.num_laps,
+                created_at=row.created_at
+            )
+        return None
+
     def get_global_summary(self) -> GlobalSummary:
         query = f"""
             SELECT
