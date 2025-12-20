@@ -1,7 +1,7 @@
 from google.cloud import bigquery
 from typing import List, Optional
 import os
-from .models import SessionSummary, GlobalSummary, SessionDetail, DailyActivitySummary, WeeklyActivitySummary, MonthlyActivitySummary
+from .models import SessionSummary, GlobalSummary, SessionDetail, DailyActivitySummary, WeeklyActivitySummary, MonthlyActivitySummary, DailyMetrics
 from datetime import datetime, date
 
 class BigQueryClient:
@@ -394,3 +394,59 @@ class BigQueryClient:
             )
 
         return summaries
+
+    def get_daily_metrics(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[DailyMetrics]:
+        base_query = f"""
+            SELECT *
+            FROM `{self.project_id}.{self.dataset_id}.metrics`
+            WHERE 1=1
+        """
+
+        query_parameters = []
+
+        if start_date is not None:
+            base_query += " AND DATE(timestamp) >= @start_date"
+            query_parameters.append(
+                bigquery.ScalarQueryParameter("start_date", "DATE", start_date)
+            )
+
+        if end_date is not None:
+            base_query += " AND DATE(timestamp) <= @end_date"
+            query_parameters.append(
+                bigquery.ScalarQueryParameter("end_date", "DATE", end_date)
+            )
+
+        base_query += "\n ORDER BY timestamp DESC"
+
+        job_config = bigquery.QueryJobConfig(query_parameters=query_parameters)
+        query_job = self.client.query(base_query, job_config=job_config)
+        results = query_job.result()
+
+        metrics: List[DailyMetrics] = []
+        for row in results:
+            metrics.append(
+                DailyMetrics(
+                    file_hash=row.file_hash,
+                    filename=row.filename,
+                    timestamp=row.timestamp,
+                    body_battery_min=row.body_battery_min,
+                    body_battery_max=row.body_battery_max,
+                    body_battery_avg=row.body_battery_avg,
+                    pulse=row.pulse,
+                    sleep_hours=row.sleep_hours,
+                    stress_level_max=row.stress_level_max,
+                    stress_level_avg=row.stress_level_avg,
+                    time_awake=row.time_awake,
+                    time_in_deep_sleep=row.time_in_deep_sleep,
+                    time_in_light_sleep=row.time_in_light_sleep,
+                    time_in_rem_sleep=row.time_in_rem_sleep,
+                    weight_kilograms=row.weight_kilograms,
+                    created_at=row.created_at,
+                )
+            )
+
+        return metrics

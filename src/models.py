@@ -100,6 +100,25 @@ class MonthlyActivitySummary(BaseModel):
     total_elapsed_time: Optional[float] = None
 
 
+class DailyMetrics(BaseModel):
+    file_hash: str
+    filename: str
+    timestamp: datetime
+    body_battery_min: Optional[int] = None
+    body_battery_max: Optional[int] = None
+    body_battery_avg: Optional[int] = None
+    pulse: Optional[int] = None
+    sleep_hours: Optional[float] = None
+    stress_level_max: Optional[int] = None
+    stress_level_avg: Optional[int] = None
+    time_awake: Optional[float] = None
+    time_in_deep_sleep: Optional[float] = None
+    time_in_light_sleep: Optional[float] = None
+    time_in_rem_sleep: Optional[float] = None
+    weight_kilograms: Optional[float] = None
+    created_at: datetime
+
+
 # Generic response wrapper with data source indicator
 T = TypeVar('T')
 

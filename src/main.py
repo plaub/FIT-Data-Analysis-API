@@ -6,7 +6,7 @@ import redis.asyncio as redis
 from contextlib import asynccontextmanager
 
 from .config import settings
-from .routers import sessions, summary, details, daily_activity, weekly_activity, monthly_activity
+from .routers import sessions, summary, details, daily_activity, weekly_activity, monthly_activity, daily_metrics
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,6 +43,7 @@ app.include_router(details.router)
 app.include_router(daily_activity.router)
 app.include_router(weekly_activity.router)
 app.include_router(monthly_activity.router)
+app.include_router(daily_metrics.router)
 
 @app.get("/health")
 async def health_check():

@@ -18,6 +18,7 @@ class Settings:
     CACHE_TTL_SUMMARY = int(os.getenv("CACHE_TTL_SUMMARY", 604800))   # 1 Woche
     CACHE_TTL_DETAILS = int(os.getenv("CACHE_TTL_DETAILS", 604800)) # 1 Woche
     CACHE_TTL_DAILY_ACTIVITY = int(os.getenv("CACHE_TTL_DAILY_ACTIVITY", 604800)) # 1 Woche
+    CACHE_TTL_METRICS = int(os.getenv("CACHE_TTL_METRICS", 604800)) # 1 Woche
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", 30))
