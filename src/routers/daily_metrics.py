@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta, datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -50,6 +50,47 @@ async def get_daily_metrics(
         start_date=start_date,
         end_date=end_date,
     )
+
+    # Fill gaps if range is specified
+    if start_date and end_date:
+        # Identify which dates have data
+        existing_dates = {
+            m.timestamp.date() if isinstance(m.timestamp, datetime) else m.timestamp 
+            for m in metrics
+        }
+        
+        filled_metrics = list(metrics)
+        current_date = start_date
+        while current_date <= end_date:
+            if current_date not in existing_dates:
+                # Create a placeholder entry with zeros
+                filled_metrics.append(DailyMetrics(
+                    file_hash="none",
+                    filename="none",
+                    timestamp=datetime(current_date.year, current_date.month, current_date.day, tzinfo=timezone.utc),
+                    body_battery_min=0,
+                    body_battery_max=0,
+                    body_battery_avg=0,
+                    pulse=0,
+                    sleep_hours=0,
+                    stress_level_max=0,
+                    stress_level_avg=0,
+                    time_awake=0,
+                    time_in_deep_sleep=0,
+                    time_in_light_sleep=0,
+                    time_in_rem_sleep=0,
+                    weight_kilograms=0,
+                    created_at=datetime.now(timezone.utc)
+                ))
+            current_date += timedelta(days=1)
+        
+        # Sort by timestamp DESC (to match existing behavior)
+        # We ensure consistency by converting everything to UTC for comparison
+        metrics = sorted(
+            filled_metrics, 
+            key=lambda x: x.timestamp.astimezone(timezone.utc) if x.timestamp.tzinfo else x.timestamp.replace(tzinfo=timezone.utc), 
+            reverse=True
+        )
 
     # Serialize and cache
     if metrics:
