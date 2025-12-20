@@ -116,6 +116,11 @@ class DailyMetrics(BaseModel):
     time_in_light_sleep: Optional[float] = None
     time_in_rem_sleep: Optional[float] = None
     weight_kilograms: Optional[float] = None
+    resting_heart_rate: Optional[int] = None
+    max_heart_rate: Optional[int] = None
+    min_heart_rate: Optional[int] = None
+    avg_heart_rate: Optional[int] = None
+    hrv_avg: Optional[float] = None
     created_at: datetime
 
 

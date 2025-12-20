@@ -80,6 +80,11 @@ async def get_daily_metrics(
                     time_in_light_sleep=0,
                     time_in_rem_sleep=0,
                     weight_kilograms=0,
+                    resting_heart_rate=0,
+                    max_heart_rate=0,
+                    min_heart_rate=0,
+                    avg_heart_rate=0,
+                    hrv_avg=0,
                     created_at=datetime.now(timezone.utc)
                 ))
             current_date += timedelta(days=1)

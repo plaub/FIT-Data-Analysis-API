@@ -445,6 +445,11 @@ class BigQueryClient:
                     time_in_light_sleep=row.time_in_light_sleep,
                     time_in_rem_sleep=row.time_in_rem_sleep,
                     weight_kilograms=row.weight_kilograms,
+                    resting_heart_rate=row.resting_heart_rate,
+                    max_heart_rate=row.max_heart_rate,
+                    min_heart_rate=row.min_heart_rate,
+                    avg_heart_rate=row.avg_heart_rate,
+                    hrv_avg=row.hrv_avg,
                     created_at=row.created_at,
                 )
             )
@@ -457,15 +462,15 @@ class BigQueryClient:
     ) -> MetricsSummary:
         query = f"""
             SELECT
-                AVG(body_battery_avg) as avg_body_battery_avg,
-                AVG(pulse) as avg_pulse,
-                AVG(sleep_hours) as avg_sleep_hours,
-                AVG(stress_level_avg) as avg_stress_level_avg,
-                AVG(weight_kilograms) as avg_weight_kilograms,
+                AVG(NULLIF(body_battery_avg, 0)) as avg_body_battery_avg,
+                AVG(COALESCE(NULLIF(pulse, 0), NULLIF(resting_heart_rate, 0))) as avg_pulse,
+                AVG(NULLIF(sleep_hours, 0)) as avg_sleep_hours,
+                AVG(NULLIF(stress_level_avg, 0)) as avg_stress_level_avg,
+                AVG(NULLIF(weight_kilograms, 0)) as avg_weight_kilograms,
                 MAX(body_battery_max) as max_body_battery,
-                MIN(body_battery_min) as min_body_battery,
+                MIN(NULLIF(body_battery_min, 0)) as min_body_battery,
                 MAX(stress_level_max) as max_stress_level,
-                MIN(stress_level_avg) as min_stress_level,
+                MIN(NULLIF(stress_level_avg, 0)) as min_stress_level,
                 COUNT(*) as total_days_with_data
             FROM `{self.project_id}.{self.dataset_id}.metrics`
             WHERE 1=1
