@@ -119,6 +119,19 @@ class DailyMetrics(BaseModel):
     created_at: datetime
 
 
+class MetricsSummary(BaseModel):
+    avg_body_battery_avg: Optional[float] = None
+    avg_pulse: Optional[float] = None
+    avg_sleep_hours: Optional[float] = None
+    avg_stress_level_avg: Optional[float] = None
+    avg_weight_kilograms: Optional[float] = None
+    max_body_battery: Optional[int] = None
+    min_body_battery: Optional[int] = None
+    max_stress_level: Optional[int] = None
+    min_stress_level: Optional[int] = None
+    total_days_with_data: int
+
+
 # Generic response wrapper with data source indicator
 T = TypeVar('T')
 

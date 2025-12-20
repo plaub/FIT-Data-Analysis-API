@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi_limiter.depends import RateLimiter
 import json
 
-from ..models import DailyMetrics, ResponseWithSource
+from ..models import DailyMetrics, MetricsSummary, ResponseWithSource
 from ..config import settings
 from ..dependencies import get_redis, get_bq_client
 
@@ -103,5 +103,56 @@ async def get_daily_metrics(
 
     return ResponseWithSource(
         data=metrics,
+        source="bigquery"
+    )
+
+
+@router.get(
+    "/summary",
+    response_model=ResponseWithSource[MetricsSummary],
+    dependencies=[Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))],
+)
+async def get_metrics_summary(
+    start_date: Optional[date] = Query(
+        None, description="Start date (inclusive, format YYYY-MM-DD)"
+    ),
+    end_date: Optional[date] = Query(
+        None, description="End date (inclusive, format YYYY-MM-DD)"
+    ),
+    redis=Depends(get_redis),
+    bq_client=Depends(get_bq_client),
+):
+    cache_key = (
+        f"daily_metrics_summary:"  # base
+        f"{start_date if start_date else 'none'}:"  # start
+        f"{end_date if end_date else 'none'}"  # end
+    )
+
+    # Try Cache
+    cached_data = await redis.get(cache_key)
+    if cached_data:
+        data_dict = json.loads(cached_data)
+        return ResponseWithSource(
+            data=MetricsSummary(**data_dict),
+            source="cache"
+        )
+
+    # Cache Miss - query BigQuery
+    summary = bq_client.get_metrics_summary(
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    # Serialize and cache
+    if summary:
+        summary_json = summary.model_dump()
+        await redis.set(
+            cache_key,
+            json.dumps(summary_json, default=str),
+            ex=settings.CACHE_TTL_METRICS,
+        )
+
+    return ResponseWithSource(
+        data=summary,
         source="bigquery"
     )

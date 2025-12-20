@@ -1,7 +1,7 @@
 from google.cloud import bigquery
 from typing import List, Optional
 import os
-from .models import SessionSummary, GlobalSummary, SessionDetail, DailyActivitySummary, WeeklyActivitySummary, MonthlyActivitySummary, DailyMetrics
+from .models import SessionSummary, GlobalSummary, SessionDetail, DailyActivitySummary, WeeklyActivitySummary, MonthlyActivitySummary, DailyMetrics, MetricsSummary
 from datetime import datetime, date
 
 class BigQueryClient:
@@ -450,3 +450,57 @@ class BigQueryClient:
             )
 
         return metrics
+    def get_metrics_summary(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> MetricsSummary:
+        query = f"""
+            SELECT
+                AVG(body_battery_avg) as avg_body_battery_avg,
+                AVG(pulse) as avg_pulse,
+                AVG(sleep_hours) as avg_sleep_hours,
+                AVG(stress_level_avg) as avg_stress_level_avg,
+                AVG(weight_kilograms) as avg_weight_kilograms,
+                MAX(body_battery_max) as max_body_battery,
+                MIN(body_battery_min) as min_body_battery,
+                MAX(stress_level_max) as max_stress_level,
+                MIN(stress_level_avg) as min_stress_level,
+                COUNT(*) as total_days_with_data
+            FROM `{self.project_id}.{self.dataset_id}.metrics`
+            WHERE 1=1
+        """
+
+        query_parameters = []
+
+        if start_date is not None:
+            query += " AND DATE(timestamp) >= @start_date"
+            query_parameters.append(
+                bigquery.ScalarQueryParameter("start_date", "DATE", start_date)
+            )
+
+        if end_date is not None:
+            query += " AND DATE(timestamp) <= @end_date"
+            query_parameters.append(
+                bigquery.ScalarQueryParameter("end_date", "DATE", end_date)
+            )
+
+        job_config = bigquery.QueryJobConfig(query_parameters=query_parameters)
+        query_job = self.client.query(query, job_config=job_config)
+        results = query_job.result()
+
+        # result() always returns a RowIterator, so we take the first row
+        row = next(results)
+
+        return MetricsSummary(
+            avg_body_battery_avg=row.avg_body_battery_avg,
+            avg_pulse=row.avg_pulse,
+            avg_sleep_hours=row.avg_sleep_hours,
+            avg_stress_level_avg=row.avg_stress_level_avg,
+            avg_weight_kilograms=row.avg_weight_kilograms,
+            max_body_battery=row.max_body_battery,
+            min_body_battery=row.min_body_battery,
+            max_stress_level=row.max_stress_level,
+            min_stress_level=row.min_stress_level,
+            total_days_with_data=row.total_days_with_data
+        )
