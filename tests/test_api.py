@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 from src.models import SessionSummary, GlobalSummary, SessionDetail, DailyActivitySummary
-from datetime import datetime
+from datetime import datetime, date
 import json
 
 @pytest.mark.asyncio
@@ -34,20 +34,24 @@ async def test_get_sessions_no_cache(client, mock_bq_client, mock_redis):
     
     # Verify basics
     assert response.status_code == 200
-    data = response.json()
+    res_json = response.json()
+    data = res_json["data"]
     assert len(data) == 1
     assert data[0]["session_id"] == "1"
     assert data[0]["file_hash"] == "hash123"
+    assert res_json["source"] == "bigquery"
     
     # Verify Interactions
     mock_bq_client.get_recent_sessions.assert_called_once()  # Should hit DB
-    mock_redis.get.assert_called_with("sessions_list_page_1")     # Should check cache
+    # The cache key is now a JSON string of parameters
+    expected_cache_params = {"page": 1, "sport": None, "start_date": None, "end_date": None, "min_distance": None, "max_distance": None}
+    expected_cache_key = f"sessions_list_{json.dumps(expected_cache_params, sort_keys=True)}"
+    mock_redis.get.assert_called_with(expected_cache_key)     # Should check cache
     mock_redis.set.assert_called_once()                    # Should set cache
 
 @pytest.mark.asyncio
 async def test_get_sessions_cached(client, mock_bq_client, mock_redis):
     # Setup Redis Mock to return cached data
-    # Must match structure of SessionSummary model dump
     cached_data = [
         {
             "file_hash": "hash_cached",
@@ -67,12 +71,16 @@ async def test_get_sessions_cached(client, mock_bq_client, mock_redis):
     
     # Verify basics
     assert response.status_code == 200
-    data = response.json()
+    res_json = response.json()
+    data = res_json["data"]
     assert data[0]["session_id"] == "cached_1"
+    assert res_json["source"] == "cache"
     
     # Verify Interactions
     mock_bq_client.get_recent_sessions.assert_not_called() # Should NOT hit DB
-    mock_redis.get.assert_called_with("sessions_list_page_1")
+    expected_cache_params = {"page": 1, "sport": None, "start_date": None, "end_date": None, "min_distance": None, "max_distance": None}
+    expected_cache_key = f"sessions_list_{json.dumps(expected_cache_params, sort_keys=True)}"
+    mock_redis.get.assert_called_with(expected_cache_key)
 
 @pytest.mark.asyncio
 async def test_get_sessions_pagination(client, mock_bq_client, mock_redis):
@@ -96,14 +104,71 @@ async def test_get_sessions_pagination(client, mock_bq_client, mock_redis):
     
     # Verify basics
     assert response.status_code == 200
-    data = response.json()
+    res_json = response.json()
+    data = res_json["data"]
     assert len(data) == 1
     assert data[0]["session_id"] == "p2"
     
     # Verify Interactions
     # Offset should be (2-1)*10 = 10
-    mock_bq_client.get_recent_sessions.assert_called_with(limit=10, offset=10)
-    mock_redis.get.assert_called_with("sessions_list_page_2")
+    mock_bq_client.get_recent_sessions.assert_called_with(
+        limit=10, 
+        offset=10, 
+        sport=None, 
+        start_date=None, 
+        end_date=None,
+        min_distance=None,
+        max_distance=None
+    )
+    expected_cache_params = {"page": 2, "sport": None, "start_date": None, "end_date": None, "min_distance": None, "max_distance": None}
+    expected_cache_key = f"sessions_list_{json.dumps(expected_cache_params, sort_keys=True)}"
+    mock_redis.get.assert_called_with(expected_cache_key)
+
+
+@pytest.mark.asyncio
+async def test_get_sessions_filtered(client, mock_bq_client, mock_redis):
+    # Setup BigQuery Mock return
+    mock_sessions = [
+        SessionSummary(
+            file_hash="hash_filtered",
+            filename="filtered.fit",
+            session_id="filtered_1",
+            created_at=datetime(2023, 1, 1, 10, 0, 0),
+            sport="Running",
+            total_distance=10000.0
+        )
+    ]
+    mock_bq_client.get_recent_sessions.return_value = mock_sessions
+    
+    # Run Request with filters
+    response = await client.get("/api/sessions?sport=Running&min_distance=5000&start_date=2023-01-01")
+    
+    # Verify basics
+    assert response.status_code == 200
+    res_json = response.json()
+    assert res_json["data"][0]["session_id"] == "filtered_1"
+    
+    # Verify Interactions
+    mock_bq_client.get_recent_sessions.assert_called_with(
+        limit=10, 
+        offset=0, 
+        sport="Running", 
+        start_date=date(2023, 1, 1), 
+        end_date=None,
+        min_distance=5000.0,
+        max_distance=None
+    )
+    
+    expected_cache_params = {
+        "page": 1, 
+        "sport": "Running", 
+        "start_date": "2023-01-01", 
+        "end_date": None, 
+        "min_distance": 5000.0, 
+        "max_distance": None
+    }
+    expected_cache_key = f"sessions_list_{json.dumps(expected_cache_params, sort_keys=True)}"
+    mock_redis.get.assert_called_with(expected_cache_key)
 
 
 @pytest.mark.asyncio
@@ -119,7 +184,9 @@ async def test_get_summary(client, mock_bq_client, mock_redis):
     response = await client.get("/api/summary")
     
     assert response.status_code == 200
-    assert response.json()["total_sessions"] == 100
+    res_json = response.json()
+    assert res_json["data"]["total_sessions"] == 100
+    assert res_json["source"] == "bigquery"
     mock_bq_client.get_global_summary.assert_called_once()
 
 @pytest.mark.asyncio
@@ -148,10 +215,12 @@ async def test_get_session_details(client, mock_bq_client, mock_redis):
     response = await client.get(f"/api/sessions/{session_id}/details")
     
     assert response.status_code == 200
-    data = response.json()
+    res_json = response.json()
+    data = res_json["data"]
     assert len(data) == 2
     assert data[0]["record_id"] == "rec1"
     assert data[1]["record_id"] == "rec2"
+    assert res_json["source"] == "bigquery"
     
     mock_bq_client.get_session_details.assert_called_with(session_id)
     mock_redis.get.assert_called_with(f"session_details:{session_id}")
@@ -176,15 +245,13 @@ async def test_get_session_details_with_fields(client, mock_bq_client, mock_redi
     response = await client.get(f"/api/sessions/{session_id}/details?fields={fields_param}")
     
     assert response.status_code == 200
-    data = response.json()
+    res_json = response.json()
+    data = res_json["data"]
     assert len(data) == 1
     assert data[0]["heart_rate"] == 140
     # Power should not be in the response (or None if default, but we filtered)
-    # The filter logic in router reconstructs the model, so unset fields are null/excluded depending on model dump config.
-    # Our filter uses "keep" set.
-    # We constructed the dict with valid keys. Power was not in keep.
-    # So power should be None in the response object (since it's Optional in model).
     assert data[0]["power"] is None
+    assert res_json["source"] == "bigquery"
     
     # Check that client was called without specific fields (always full fetch)
     mock_bq_client.get_session_details.assert_called_with(session_id)
@@ -211,10 +278,12 @@ async def test_get_daily_summary_no_cache(client, mock_bq_client, mock_redis):
     response = await client.get("/api/daily-summary?start_date=2023-01-01&end_date=2023-01-31&sport=Running")
 
     assert response.status_code == 200
-    data = response.json()
+    res_json = response.json()
+    data = res_json["data"]
     assert len(data) == 1
     assert data[0]["sport"] == "Running"
     assert data[0]["session_count"] == 3
+    assert res_json["source"] == "bigquery"
 
     mock_bq_client.get_daily_activity_summary.assert_called_once()
     # Cache miss path should check the composed key
@@ -239,10 +308,12 @@ async def test_get_daily_summary_cached(client, mock_bq_client, mock_redis):
     response = await client.get("/api/daily-summary?start_date=2023-01-01&end_date=2023-01-31&sport=Cycling")
 
     assert response.status_code == 200
-    data = response.json()
+    res_json = response.json()
+    data = res_json["data"]
     assert len(data) == 1
     assert data[0]["sport"] == "Cycling"
     assert data[0]["session_count"] == 2
+    assert res_json["source"] == "cache"
 
     # Should not hit BigQuery when cached
     mock_bq_client.get_daily_activity_summary.assert_not_called()

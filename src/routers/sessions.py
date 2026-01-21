@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi_limiter.depends import RateLimiter
 import json
 from typing import List
+from datetime import date
 
 from ..models import SessionSummary, ResponseWithSource
 from ..config import settings
@@ -18,12 +19,27 @@ router = APIRouter(
 
 async def get_sessions(
     page: int = Query(1, ge=1, description="Page number"),
+    sport: str = Query(None, description="Filter by sport"),
+    start_date: date = Query(None, description="Filter by start date (YYYY-MM-DD)"),
+    end_date: date = Query(None, description="Filter by end date (YYYY-MM-DD)"),
+    min_distance: float = Query(None, description="Filter by minimum distance in meters"),
+    max_distance: float = Query(None, description="Filter by maximum distance in meters"),
     redis = Depends(get_redis),
     bq_client = Depends(get_bq_client)
 ):
     limit = 10
     offset = (page - 1) * limit
-    cache_key = f"sessions_list_page_{page}"
+    
+    # Generate cache key based on all parameters
+    cache_params = {
+        "page": page,
+        "sport": sport,
+        "start_date": str(start_date) if start_date else None,
+        "end_date": str(end_date) if end_date else None,
+        "min_distance": min_distance,
+        "max_distance": max_distance
+    }
+    cache_key = f"sessions_list_{json.dumps(cache_params, sort_keys=True)}"
     
     # Try Cache
     cached_data = await redis.get(cache_key)
@@ -35,7 +51,15 @@ async def get_sessions(
         )
     
     # Cache Miss
-    sessions = bq_client.get_recent_sessions(limit=limit, offset=offset)
+    sessions = bq_client.get_recent_sessions(
+        limit=limit, 
+        offset=offset,
+        sport=sport,
+        start_date=start_date,
+        end_date=end_date,
+        min_distance=min_distance,
+        max_distance=max_distance
+    )
     
     # Serialize and Cache
     sessions_json = [s.model_dump() for s in sessions]

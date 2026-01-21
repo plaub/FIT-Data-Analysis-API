@@ -10,21 +10,56 @@ class BigQueryClient:
         self.dataset_id = os.getenv("BIGQUERY_DATASET")
         self.client = bigquery.Client(project=self.project_id)
 
-    def get_recent_sessions(self, limit: int = 10, offset: int = 0) -> List[SessionSummary]:
+    def get_recent_sessions(
+        self, 
+        limit: int = 10, 
+        offset: int = 0,
+        sport: Optional[str] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        min_distance: Optional[float] = None,
+        max_distance: Optional[float] = None
+    ) -> List[SessionSummary]:
         # Select all columns defined in the SessionSummary model
         # Using * for simplicity, but explicit selection matches the model definition better
         # For this specific case, we'll explicitly map the query to the model fields
         query = f"""
             SELECT *
             FROM `{self.project_id}.{self.dataset_id}.sessions`
+            WHERE 1=1
+        """
+        
+        query_parameters = [
+            bigquery.ScalarQueryParameter("limit", "INT64", limit),
+            bigquery.ScalarQueryParameter("offset", "INT64", offset)
+        ]
+
+        if sport:
+            query += " AND sport = @sport"
+            query_parameters.append(bigquery.ScalarQueryParameter("sport", "STRING", sport))
+        
+        if start_date:
+            query += " AND DATE(start_time) >= @start_date"
+            query_parameters.append(bigquery.ScalarQueryParameter("start_date", "DATE", start_date))
+            
+        if end_date:
+            query += " AND DATE(start_time) <= @end_date"
+            query_parameters.append(bigquery.ScalarQueryParameter("end_date", "DATE", end_date))
+
+        if min_distance is not None:
+            query += " AND total_distance >= @min_distance"
+            query_parameters.append(bigquery.ScalarQueryParameter("min_distance", "FLOAT64", min_distance))
+
+        if max_distance is not None:
+            query += " AND total_distance <= @max_distance"
+            query_parameters.append(bigquery.ScalarQueryParameter("max_distance", "FLOAT64", max_distance))
+
+        query += """
             ORDER BY start_time DESC
             LIMIT @limit OFFSET @offset
         """
         job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("limit", "INT64", limit),
-                bigquery.ScalarQueryParameter("offset", "INT64", offset)
-            ]
+            query_parameters=query_parameters
         )
         query_job = self.client.query(query, job_config=job_config)
         results = query_job.result()
