@@ -6,7 +6,7 @@ from fastapi_limiter.depends import RateLimiter
 import json
 
 from ..models import DailyMetrics, MetricsSummary, ResponseWithSource
-from ..config import settings
+from ..config import settings, rate_limiter
 from ..dependencies import get_redis, get_bq_client
 
 router = APIRouter(
@@ -18,7 +18,7 @@ router = APIRouter(
 @router.get(
     "",
     response_model=ResponseWithSource[List[DailyMetrics]],
-    dependencies=[Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))],
+    dependencies=[Depends(RateLimiter(limiter=rate_limiter))],
 )
 async def get_daily_metrics(
     start_date: Optional[date] = Query(
@@ -115,7 +115,7 @@ async def get_daily_metrics(
 @router.get(
     "/summary",
     response_model=ResponseWithSource[MetricsSummary],
-    dependencies=[Depends(RateLimiter(times=settings.RATE_LIMIT_PER_MINUTE, seconds=60))],
+    dependencies=[Depends(RateLimiter(limiter=rate_limiter))],
 )
 async def get_metrics_summary(
     start_date: Optional[date] = Query(

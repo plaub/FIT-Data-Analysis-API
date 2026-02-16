@@ -4,7 +4,8 @@ python-dotenv
 google-cloud-bigquery
 redis
 pydantic
-fastapi-limiter
+fastapi-limiter==0.2.0
+pyrate-limiter>=3.9.0
 pytest
 httpx
 pytest-asyncio

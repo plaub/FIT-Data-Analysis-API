@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fastapi_limiter import FastAPILimiter
 import redis.asyncio as redis
 from contextlib import asynccontextmanager
 
@@ -12,7 +11,6 @@ from .routers import sessions, summary, details, daily_activity, weekly_activity
 async def lifespan(app: FastAPI):
     # Startup
     redis_instance = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
-    await FastAPILimiter.init(redis_instance)
     app.state.redis = redis_instance
     yield
     # Shutdown

@@ -27,3 +27,7 @@ class Settings:
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:4321,http://localhost:3000").split(",")
 
 settings = Settings()
+
+# Shared rate limiter instance for all routers
+from pyrate_limiter import Duration, Limiter, Rate
+rate_limiter = Limiter(Rate(settings.RATE_LIMIT_PER_MINUTE, Duration.MINUTE))
