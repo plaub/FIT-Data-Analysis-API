@@ -12,7 +12,7 @@ class BigQueryClient:
 
     def get_recent_sessions(
         self, 
-        limit: int = 10, 
+        limit: Optional[int] = 10, 
         offset: int = 0,
         sport: Optional[str] = None,
         start_date: Optional[date] = None,
@@ -29,10 +29,7 @@ class BigQueryClient:
             WHERE 1=1
         """
         
-        query_parameters = [
-            bigquery.ScalarQueryParameter("limit", "INT64", limit),
-            bigquery.ScalarQueryParameter("offset", "INT64", offset)
-        ]
+        query_parameters = []
 
         if sport:
             query += " AND sport = @sport"
@@ -54,10 +51,12 @@ class BigQueryClient:
             query += " AND total_distance <= @max_distance"
             query_parameters.append(bigquery.ScalarQueryParameter("max_distance", "FLOAT64", max_distance))
 
-        query += """
-            ORDER BY start_time DESC
-            LIMIT @limit OFFSET @offset
-        """
+        query += "\n            ORDER BY start_time DESC"
+        
+        if limit is not None:
+            query += "\n            LIMIT @limit OFFSET @offset"
+            query_parameters.append(bigquery.ScalarQueryParameter("limit", "INT64", limit))
+            query_parameters.append(bigquery.ScalarQueryParameter("offset", "INT64", offset))
         job_config = bigquery.QueryJobConfig(
             query_parameters=query_parameters
         )

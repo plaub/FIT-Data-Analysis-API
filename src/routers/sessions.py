@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+from typing import Optional
 from fastapi_limiter.depends import RateLimiter
 import json
 from typing import List
@@ -19,6 +20,7 @@ router = APIRouter(
 
 async def get_sessions(
     page: int = Query(1, ge=1, description="Page number"),
+    all: bool = Query(False, description="Return all sessions without pagination (requires start_date and end_date)"),
     sport: str = Query(None, description="Filter by sport"),
     start_date: date = Query(None, description="Filter by start date (YYYY-MM-DD)"),
     end_date: date = Query(None, description="Filter by end date (YYYY-MM-DD)"),
@@ -27,12 +29,22 @@ async def get_sessions(
     redis = Depends(get_redis),
     bq_client = Depends(get_bq_client)
 ):
-    limit = 10
-    offset = (page - 1) * limit
+    if all:
+        if not start_date or not end_date:
+            raise HTTPException(
+                status_code=400, 
+                detail="start_date and end_date are required when using all=true"
+            )
+        limit = None
+        offset = 0
+    else:
+        limit = 10
+        offset = (page - 1) * limit
     
     # Generate cache key based on all parameters
     cache_params = {
-        "page": page,
+        "all": all,
+        "page": page if not all else None,
         "sport": sport,
         "start_date": str(start_date) if start_date else None,
         "end_date": str(end_date) if end_date else None,
