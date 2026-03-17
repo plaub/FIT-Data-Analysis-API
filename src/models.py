@@ -43,6 +43,8 @@ class SessionSummary(BaseModel):
     intensity_factor: Optional[float] = None
     num_laps: Optional[int] = None
     created_at: datetime
+    map_mini_preview_base64: Optional[str] = None
+    map_large_base64: Optional[str] = None
 
 class SessionDetail(BaseModel):
     session_id: str

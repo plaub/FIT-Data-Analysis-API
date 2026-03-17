@@ -24,7 +24,9 @@ async def test_get_sessions_no_cache(client, mock_bq_client, mock_redis):
             start_time=datetime(2023, 1, 1, 10, 0, 0),
             sport="Running",
             total_timer_time=1800.0, # 30 mins * 60
-            total_distance=5000.0   # 5 km * 1000
+            total_distance=5000.0,   # 5 km * 1000
+            map_mini_preview_base64="mini",
+            map_large_base64="large"
         )
     ]
     mock_bq_client.get_recent_sessions.return_value = mock_sessions
@@ -44,7 +46,7 @@ async def test_get_sessions_no_cache(client, mock_bq_client, mock_redis):
     # Verify Interactions
     mock_bq_client.get_recent_sessions.assert_called_once()  # Should hit DB
     # The cache key is now a JSON string of parameters
-    expected_cache_params = {"page": 1, "sport": None, "start_date": None, "end_date": None, "min_distance": None, "max_distance": None}
+    expected_cache_params = {"all": False, "page": 1, "sport": None, "start_date": None, "end_date": None, "min_distance": None, "max_distance": None}
     expected_cache_key = f"sessions_list_{json.dumps(expected_cache_params, sort_keys=True)}"
     mock_redis.get.assert_called_with(expected_cache_key)     # Should check cache
     mock_redis.set.assert_called_once()                    # Should set cache
@@ -61,7 +63,9 @@ async def test_get_sessions_cached(client, mock_bq_client, mock_redis):
             "start_time": "2023-01-01T10:00:00", 
             "sport": "Cycling", 
             "total_timer_time": 3600.0, 
-            "total_distance": 20000.0
+            "total_distance": 20000.0,
+            "map_mini_preview_base64": "mini_cached",
+            "map_large_base64": "large_cached"
         }
     ]
     mock_redis.get.return_value = json.dumps(cached_data)
@@ -78,7 +82,7 @@ async def test_get_sessions_cached(client, mock_bq_client, mock_redis):
     
     # Verify Interactions
     mock_bq_client.get_recent_sessions.assert_not_called() # Should NOT hit DB
-    expected_cache_params = {"page": 1, "sport": None, "start_date": None, "end_date": None, "min_distance": None, "max_distance": None}
+    expected_cache_params = {"all": False, "page": 1, "sport": None, "start_date": None, "end_date": None, "min_distance": None, "max_distance": None}
     expected_cache_key = f"sessions_list_{json.dumps(expected_cache_params, sort_keys=True)}"
     mock_redis.get.assert_called_with(expected_cache_key)
 
@@ -94,7 +98,9 @@ async def test_get_sessions_pagination(client, mock_bq_client, mock_redis):
             start_time=datetime(2023, 1, 1, 10, 0, 0),
             sport="Running",
             total_timer_time=1800.0,
-            total_distance=5000.0
+            total_distance=5000.0,
+            map_mini_preview_base64="mini_p2",
+            map_large_base64="large_p2"
         )
     ]
     mock_bq_client.get_recent_sessions.return_value = mock_sessions
@@ -120,7 +126,7 @@ async def test_get_sessions_pagination(client, mock_bq_client, mock_redis):
         min_distance=None,
         max_distance=None
     )
-    expected_cache_params = {"page": 2, "sport": None, "start_date": None, "end_date": None, "min_distance": None, "max_distance": None}
+    expected_cache_params = {"all": False, "page": 2, "sport": None, "start_date": None, "end_date": None, "min_distance": None, "max_distance": None}
     expected_cache_key = f"sessions_list_{json.dumps(expected_cache_params, sort_keys=True)}"
     mock_redis.get.assert_called_with(expected_cache_key)
 
@@ -135,7 +141,9 @@ async def test_get_sessions_filtered(client, mock_bq_client, mock_redis):
             session_id="filtered_1",
             created_at=datetime(2023, 1, 1, 10, 0, 0),
             sport="Running",
-            total_distance=10000.0
+            total_distance=10000.0,
+            map_mini_preview_base64="mini_f",
+            map_large_base64="large_f"
         )
     ]
     mock_bq_client.get_recent_sessions.return_value = mock_sessions
@@ -160,6 +168,7 @@ async def test_get_sessions_filtered(client, mock_bq_client, mock_redis):
     )
     
     expected_cache_params = {
+        "all": False,
         "page": 1, 
         "sport": "Running", 
         "start_date": "2023-01-01", 

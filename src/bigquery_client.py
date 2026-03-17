@@ -108,7 +108,9 @@ class BigQueryClient:
                 training_stress_score=row.training_stress_score,
                 intensity_factor=row.intensity_factor,
                 num_laps=row.num_laps,
-                created_at=row.created_at
+                created_at=row.created_at,
+                map_mini_preview_base64=row.map_mini_preview_base64,
+                map_large_base64=row.map_large_base64
             ))
         return sessions
 
@@ -167,7 +169,9 @@ class BigQueryClient:
                 training_stress_score=row.training_stress_score,
                 intensity_factor=row.intensity_factor,
                 num_laps=row.num_laps,
-                created_at=row.created_at
+                created_at=row.created_at,
+                map_mini_preview_base64=row.map_mini_preview_base64,
+                map_large_base64=row.map_large_base64
             )
         return None
 
